@@ -70,4 +70,12 @@ jobs:
           v="$(node -p 'require("./package.json").version')"
           test "${GITHUB_REF_NAME}" = "v${v}" || { echo "Tag ${GITHUB_REF_NAME} doesn't match package.json version ${v}"; exit 1; }
           grep -q "\"${v}\"" src/version.ts || { echo "src/version.ts isn't ${v}"; exit 1; }
-      - run: npm publish --provenance --access public
+      # 0.1.0 is published once by hand (npm needs the package to exist before a trusted publisher can be set);
+      # its tag then finds it already there and stops here instead of failing.
+      - name: Skip a version that's already on npm
+        id: exists
+        run: |
+          v="$(node -p 'require("./package.json").version')"
+          if npm view "@midwater/sdk@${v}" version >/dev/null 2>&1; then echo "@midwater/sdk@${v} is already published; nothing to do."; echo "published=true" >> "$GITHUB_OUTPUT"; fi
+      - if: ${{ steps.exists.outputs.published != 'true' }}
+        run: npm publish --provenance --access public
