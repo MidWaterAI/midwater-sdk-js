@@ -1,0 +1,68 @@
+{
+  "name": "@midwater/sdk",
+  "version": "0.1.0",
+  "description": "Official JavaScript and TypeScript client for the Midwater API: send AI-agent conversations, read outcomes, check results and agent health, and verify webhooks.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./webhooks": {
+      "import": {
+        "types": "./dist/webhooks.d.ts",
+        "default": "./dist/webhooks.js"
+      },
+      "require": {
+        "types": "./dist/webhooks.d.cts",
+        "default": "./dist/webhooks.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run test/unit",
+    "test:contract": "vitest run test/contract",
+    "check:openapi": "node scripts/check-openapi.mjs",
+    "check:package": "node scripts/check-package.mjs",
+    "contract:setup": "node scripts/contract-setup.mjs"
+  },
+  "keywords": [
+    "midwater",
+    "ai agents",
+    "voice agents",
+    "conversation quality",
+    "webhooks"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.130",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}
