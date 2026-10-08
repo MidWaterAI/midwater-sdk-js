@@ -228,7 +228,7 @@ webhooks:
                     type: { const: conversation.evaluated }
                     data: { $ref: "#/components/schemas/ConversationEvaluatedData" }
       responses: &webhookResponses
-        "2XX": { description: Any 2xx marks the delivery as delivered. Anything else, or no answer within 5 seconds, is retried. }
+        "2XX": { description: "Any 2xx marks the delivery as delivered. Anything else, or no answer within 5 seconds, is retried." }
   check.failed:
     post:
       summary: A check failed
@@ -468,13 +468,13 @@ components:
           description: "Who ended the conversation. `timeout` is valid for chat only."
         agent: { $ref: "#/components/schemas/AgentRef" }
         group: { $ref: "#/components/schemas/GroupRef" }
-        transcript: { type: array, minItems: 1, items: { $ref: "#/components/schemas/Turn" }, description: Every turn, in order. }
+        transcript: { type: array, minItems: 1, items: { $ref: "#/components/schemas/Turn" }, description: "Every turn, in order." }
         events: { type: array, items: { $ref: "#/components/schemas/Event" } }
         metadata: { type: object, additionalProperties: true, description: Anything else you want kept with the conversation. }
     ConversationStatus:
       type: string
       enum: [queued, evaluating, done, failed]
-      description: "Scoring status. `failed` means scoring didn't finish; Midwater retries it."
+      description: "Scoring status. `failed` means scoring didn't finish after Midwater's automatic retries (five attempts in all); it can be re-run from the app."
     ConversationAccepted:
       type: object
       required: [id, status]
@@ -508,7 +508,7 @@ components:
         check_name: { type: string }
         check_version: { type: integer }
         check_status: { type: string, enum: [draft, shadow, active], description: "`shadow` checks are scored but never alert." }
-        score: { type: ["number", "null"], minimum: 0, maximum: 1, description: Likelihood that the problem occurred, 0 to 1. }
+        score: { type: ["number", "null"], minimum: 0, maximum: 1, description: "Likelihood that the problem occurred, 0 to 1." }
         verdict: { $ref: "#/components/schemas/CheckResultValue" }
         choice: { type: ["string", "null"], description: The chosen option for multiple-choice checks. }
         decided_by: { $ref: "#/components/schemas/DecidedBy" }
@@ -574,7 +574,7 @@ components:
         resolution_rate: { type: ["number", "null"], description: Share of conversations with an outcome that were resolved. }
         handed_to_person_rate: { type: ["number", "null"], description: "Share handed to a person (a transfer, or a person requested and provided)." }
         requests_for_person_not_honored: { type: integer, description: Conversations where the caller asked for a person and didn't get one. }
-        avg_frustration: { type: ["number", "null"], description: Average caller frustration, 0 (calm) to 1 (very frustrated). }
+        avg_frustration: { type: ["number", "null"], description: "Average caller frustration, 0 (calm) to 1 (very frustrated)." }
         compliance_failures: { type: integer, description: Compliance checks that failed in the window. }
     AgentHealth:
       type: object
@@ -617,7 +617,7 @@ components:
       properties:
         id: { type: string, description: "Event ID, `evt_…`." }
         type: { type: string }
-        environment: { type: string, enum: [test, live], description: Webhooks fire for live conversations, and for test ones only when the destination or route opts in. }
+        environment: { type: string, enum: [test, live], description: "Webhooks fire for live conversations, and for test ones only when the destination or route opts in." }
         created_at: { type: string, format: date-time }
         data: { type: object }
     WebhookAgent:
