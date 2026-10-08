@@ -1,18 +1,56 @@
 name: Release
 
-# Publishes @midwater/sdk to npm when a version tag (v0.1.0, …) is pushed. Uses npm trusted publishing (OIDC):
-# no npm token is stored anywhere. npmjs.com must list this repository, this workflow file (release.yml) and the
-# environment "npm" as the package's trusted publisher. Provenance is generated automatically (public repo only).
+# Publishes @midwater/sdk to npm with trusted publishing (OIDC): no npm token is stored anywhere.
+# npmjs.com must list this repository (MidWaterAI/midwater-sdk-js), this workflow file (release.yml) and the
+# environment "npm" as the package's trusted publisher. Provenance needs the repository to be public.
+#
+# - Push to main: the dry-run job proves the package builds and would publish (`npm publish --dry-run`).
+# - Tag v*: the publish job checks the tag against package.json, runs the full suite, and publishes.
+# - Manual run (Actions → Release → Run workflow): pick a v* tag in "Use workflow from" to publish; on a branch,
+#   only the dry run runs.
 
 on:
   push:
+    branches: [main]
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: sha256sum -c fixtures/SHA256SUMS
+      - run: npm test
+      - run: npm run build
+      - run: npm run check:package
+      - run: npm run check:openapi
+
+  dry-run:
+    needs: checks
+    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm publish --dry-run --access public
+
   publish:
+    needs: checks
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     environment: npm
     permissions:
@@ -27,15 +65,9 @@ jobs:
       # Trusted publishing needs npm 11.5.1 or later.
       - run: npm install -g npm@^11.5.1
       - run: npm ci
-      - name: Tag matches package.json and src/version.ts
+      - name: The tag is the version
         run: |
           v="$(node -p 'require("./package.json").version')"
-          test "${GITHUB_REF_NAME}" = "v${v}" || { echo "tag ${GITHUB_REF_NAME} != v${v}"; exit 1; }
+          test "${GITHUB_REF_NAME}" = "v${v}" || { echo "Tag ${GITHUB_REF_NAME} doesn't match package.json version ${v}"; exit 1; }
           grep -q "\"${v}\"" src/version.ts || { echo "src/version.ts isn't ${v}"; exit 1; }
-      - run: npm run typecheck
-      - run: sha256sum -c fixtures/SHA256SUMS
-      - run: npm test
-      - run: npm run build
-      - run: npm run check:package
-      - run: npm run check:openapi
-      - run: npm publish --access public
+      - run: npm publish --provenance --access public
