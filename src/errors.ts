@@ -18,14 +18,20 @@ export class APIError extends MidwaterError {
   readonly fields: Record<string, string[]> | undefined;
   /** The parsed body, or the raw text when it wasn't JSON. */
   readonly body: unknown;
+  /**
+   * The request's ID, from `error.request_id` or the `Midwater-Request-Id` header. Quote it to support.
+   * Planned server-side: `undefined` until Midwater sends it.
+   */
+  readonly requestId: string | undefined;
 
-  constructor(status: number, body: unknown) {
+  constructor(status: number, body: unknown, requestId?: string | null) {
     const err = (body as Partial<ApiErrorBody> | null)?.error;
     super(err?.message ?? `HTTP ${status}`);
     this.status = status;
     this.type = err?.type ?? "unknown";
     this.fields = err?.fields;
     this.body = body;
+    this.requestId = err?.request_id ?? requestId ?? undefined;
   }
 }
 
@@ -33,12 +39,22 @@ export class APIError extends MidwaterError {
 export class AuthenticationError extends APIError {}
 /** 400 (invalid JSON) or 422 (doesn't match the schema). See `fields`. */
 export class ValidationError extends APIError {}
+/** 403: the key can't do this (planned). */
+export class PermissionDeniedError extends APIError {}
 /** 404 in the key's environment. */
 export class NotFoundError extends APIError {}
-/** 429. Midwater doesn't rate-limit today; this is here so code written now keeps working. */
+/** 408. */
+export class RequestTimeoutError extends APIError {}
+/** 409 `idempotency_conflict`: the idempotency key was used with a different body (planned). */
+export class IdempotencyConflictError extends APIError {}
+/** 413: the body is too large (planned). */
+export class PayloadTooLargeError extends APIError {}
+/** 429. Rate limits are planned; this is here so code written now keeps working. */
 export class RateLimitError extends APIError {}
 /** 5xx. */
 export class ServerError extends APIError {}
+/** 503: Midwater is briefly unavailable (planned). */
+export class ServiceUnavailableError extends ServerError {}
 
 /** The request never got an HTTP answer (DNS, connection, timeout). */
 export class APIConnectionError extends MidwaterError {
@@ -59,11 +75,21 @@ export class WebhookVerificationError extends MidwaterError {
   }
 }
 
-export function errorFor(status: number, body: unknown): APIError {
-  if (status === 401) return new AuthenticationError(status, body);
-  if (status === 400 || status === 422) return new ValidationError(status, body);
-  if (status === 404) return new NotFoundError(status, body);
-  if (status === 429) return new RateLimitError(status, body);
-  if (status >= 500) return new ServerError(status, body);
-  return new APIError(status, body);
+const BY_STATUS: Record<number, new (status: number, body: unknown, requestId?: string | null) => APIError> = {
+  400: ValidationError,
+  401: AuthenticationError,
+  403: PermissionDeniedError,
+  404: NotFoundError,
+  408: RequestTimeoutError,
+  409: IdempotencyConflictError,
+  413: PayloadTooLargeError,
+  422: ValidationError,
+  429: RateLimitError,
+  503: ServiceUnavailableError,
+};
+
+/** The error class for a status. Unknown statuses fall back to their class (5xx → ServerError), never a crash. */
+export function errorFor(status: number, body: unknown, requestId?: string | null): APIError {
+  const Cls = BY_STATUS[status] ?? (status >= 500 ? ServerError : APIError);
+  return new Cls(status, body, requestId);
 }

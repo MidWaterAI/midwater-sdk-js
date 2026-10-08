@@ -174,7 +174,7 @@ export interface GroupHealth {
 }
 
 export interface ApiErrorBody {
-  error: { type: string; message: string; fields?: Record<string, string[]>; docs?: string };
+  error: { type: string; message: string; fields?: Record<string, string[]>; request_id?: string };
 }
 
 /* Webhooks */

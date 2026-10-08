@@ -1,24 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { sign, verify, webhooks, WebhookVerificationError } from "../../src/webhooks";
+import { sign, verify, verifyWebhook, webhooks, WebhookVerificationError } from "../../src/webhooks";
+import { fixture } from "./fixtures";
 
 type Case = { name: string; header: string | null; body?: string; valid: boolean; reason?: string };
-const vectors = JSON.parse(readFileSync(new URL("../fixtures/webhook-vectors.json", import.meta.url), "utf8")) as {
-  secret: string; body: string; now: number; tolerance_seconds: number; cases: Case[];
-};
+const vectors = fixture<{ secret: string; body: string; now: number; tolerance_seconds: number; cases: Case[] }>("webhook-vectors.json");
+const byName = (n: string) => vectors.cases.find((c) => c.name === n)!;
+const run = (c: Case) => verifyWebhook(c.body ?? vectors.body, c.header === null ? {} : { "Midwater-Signature": c.header }, vectors.secret, { now: vectors.now, toleranceSeconds: vectors.tolerance_seconds });
+const reasonOf = (c: Case) => { try { run(c); return "valid"; } catch (e) { expect(e).toBeInstanceOf(WebhookVerificationError); return (e as WebhookVerificationError).reason; } };
 
-describe("webhooks.verify against the shared vectors", () => {
-  for (const c of vectors.cases)
-    it(c.name, () => {
-      const headers = c.header === null ? {} : { "Midwater-Signature": c.header };
-      const run = () => verify(c.body ?? vectors.body, headers, vectors.secret, { now: vectors.now, toleranceSeconds: vectors.tolerance_seconds });
-      if (c.valid) expect(run()).toMatchObject({ type: "conversation.evaluated", environment: "live" });
-      else {
-        const err = (() => { try { run(); } catch (e) { return e; } })() as WebhookVerificationError;
-        expect(err).toBeInstanceOf(WebhookVerificationError);
-        expect(err.reason).toBe(c.reason);
-      }
-    });
+describe("verifyWebhook: the five required cases", () => {
+  it("accepts a good payload", () => expect(run(byName("valid"))).toMatchObject({ type: "conversation.evaluated", environment: "live" }));
+  it("rejects a tampered body", () => expect(reasonOf(byName("tampered_body"))).toBe("invalid_signature"));
+  it("rejects a wrong secret", () => expect(reasonOf(byName("wrong_secret"))).toBe("invalid_signature"));
+  it("rejects a stale timestamp", () => expect(reasonOf(byName("stale_timestamp"))).toBe("stale_timestamp"));
+  it("accepts two v1= values when one matches", () => expect(run(byName("valid_with_rotated_second_v1")).id).toBe("evt_a1b2c3d4e5"));
+});
+
+describe("verifyWebhook against every shared vector", () => {
+  for (const c of vectors.cases) it(c.name, () => expect(reasonOf(c)).toBe(c.valid ? "valid" : c.reason));
 });
 
 describe("webhooks", () => {
@@ -28,17 +27,16 @@ describe("webhooks", () => {
   it("signs the way it verifies, for strings and bytes", () => {
     const header = sign(body, secret, 1000);
     expect(verify(body, { "midwater-signature": header }, secret, { now: 1000 })).toMatchObject({ type: "test" });
-    expect(verify(new TextEncoder().encode(body), { "Midwater-Signature": header }, secret, { now: 1000 }).id).toBe("evt_1");
+    expect(verify(new TextEncoder().encode(body), { "Midwater-Signature": [header] }, secret, { now: 1000 }).id).toBe("evt_1");
+  });
+
+  it("signs with the current time by default and verifies within the default tolerance", () => {
+    expect(webhooks.verify(body, { "midwater-signature": webhooks.sign(body, secret) }, secret).type).toBe("test");
   });
 
   it("reads a Headers object, case-insensitively", () => {
     const h = new Headers({ "MIDWATER-SIGNATURE": sign(body, secret, 1000) });
     expect(webhooks.verify(body, h, secret, { now: 1000 }).type).toBe("test");
-  });
-
-  it("falls back to the legacy header only when Midwater-Signature is absent", () => {
-    expect(verify(body, { "verdict-signature": sign(body, secret, 1000) }, secret, { now: 1000 }).type).toBe("test");
-    expect(() => verify(body, { "midwater-signature": sign(body, "whsec_wrong", 1000), "verdict-signature": sign(body, secret, 1000) }, secret, { now: 1000 })).toThrow(WebhookVerificationError);
   });
 
   it("needs a secret", () => {
@@ -47,7 +45,11 @@ describe("webhooks", () => {
 
   it("rejects re-serialized JSON", () => {
     const header = sign(body, secret, 1000);
-    const reserialized = JSON.stringify(JSON.parse(body), null, 2);
-    expect(() => verify(reserialized, { "midwater-signature": header }, secret, { now: 1000 })).toThrow(/doesn't match/);
+    expect(() => verify(JSON.stringify(JSON.parse(body), null, 2), { "midwater-signature": header }, secret, { now: 1000 })).toThrow(/doesn't match/);
+  });
+
+  it("skips header parts without a value", () => {
+    const header = `junk,${sign(body, secret, 1000)}`;
+    expect(verify(body, { "midwater-signature": header }, secret, { now: 1000 }).id).toBe("evt_1");
   });
 });

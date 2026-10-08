@@ -12,8 +12,6 @@ export { WebhookVerificationError };
 export type { WebhookEvent };
 
 export const SIGNATURE_HEADER = "midwater-signature";
-/** Sent with the same value as `Midwater-Signature` until launch; read only when the new header is absent. */
-export const LEGACY_SIGNATURE_HEADER = "verdict-signature";
 export const DEFAULT_TOLERANCE_SECONDS = 300;
 
 type HeaderBag = Headers | Record<string, string | string[] | undefined>;
@@ -47,7 +45,7 @@ export function sign(payload: string | Uint8Array, secret: string, timestamp = M
  */
 export function verify(payload: string | Uint8Array, headers: HeaderBag, secret: string, opts: VerifyOptions = {}): WebhookEvent {
   if (!secret) throw new WebhookVerificationError("no_secret", "No signing secret: pass your environment's whsec_… secret");
-  const value = header(headers, SIGNATURE_HEADER) ?? header(headers, LEGACY_SIGNATURE_HEADER);
+  const value = header(headers, SIGNATURE_HEADER);
   if (!value) throw new WebhookVerificationError("missing_header", "No Midwater-Signature header");
 
   let t: string | undefined;
@@ -74,6 +72,9 @@ export function verify(payload: string | Uint8Array, headers: HeaderBag, secret:
   const text = typeof payload === "string" ? payload : Buffer.from(payload).toString("utf8");
   return JSON.parse(text) as WebhookEvent;
 }
+
+/** The same as {@link verify}. */
+export const verifyWebhook = verify;
 
 /** `webhooks.verify(...)` and `webhooks.sign(...)`. */
 export const webhooks = { verify, sign };

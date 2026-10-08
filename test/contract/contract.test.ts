@@ -1,26 +1,13 @@
 /**
- * Contract tests against a running local Midwater stack. They need a throwaway workspace and key in .env.contract
- * (`npm run contract:setup`) or MIDWATER_API_KEY + MIDWATER_BASE_URL pointing at localhost. Skipped otherwise.
+ * Contract tests against a running local Midwater stack. The key comes from environment variables only:
+ * MIDWATER_API_KEY (a throwaway test key) and MIDWATER_BASE_URL (localhost). Skipped when either is missing.
  */
-import { existsSync, readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { AuthenticationError, Midwater, NotFoundError, ValidationError, type ConversationCreateParams } from "../../src/index";
 
-function loadEnv(): Record<string, string> {
-  const file = new URL("../../.env.contract", import.meta.url);
-  const out: Record<string, string> = {};
-  if (existsSync(file))
-    for (const line of readFileSync(file, "utf8").split("\n")) {
-      const i = line.indexOf("=");
-      if (line.startsWith("#") || i < 1) continue;
-      out[line.slice(0, i).trim()] = line.slice(i + 1).trim();
-    }
-  return { ...out, ...(process.env.MIDWATER_API_KEY ? { MIDWATER_API_KEY: process.env.MIDWATER_API_KEY } : {}), ...(process.env.MIDWATER_BASE_URL ? { MIDWATER_BASE_URL: process.env.MIDWATER_BASE_URL } : {}) };
-}
-
-const env = loadEnv();
-const local = !!env.MIDWATER_BASE_URL && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(env.MIDWATER_BASE_URL.replace(/\/+$/, ""));
+const env = { MIDWATER_API_KEY: process.env.MIDWATER_API_KEY ?? "", MIDWATER_BASE_URL: process.env.MIDWATER_BASE_URL ?? "" };
+const local = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(env.MIDWATER_BASE_URL);
 const enabled = !!env.MIDWATER_API_KEY && local;
 
 describe.skipIf(!enabled)("contract: local Midwater stack", () => {
@@ -111,11 +98,5 @@ describe.skipIf(!enabled)("contract: local Midwater stack", () => {
   it("rejects an unknown key with AuthenticationError", async () => {
     const wrong = new Midwater({ apiKey: `mw_test_${"x".repeat(32)}`, baseUrl: env.MIDWATER_BASE_URL });
     await expect(wrong.conversations.get(id)).rejects.toBeInstanceOf(AuthenticationError);
-  });
-
-  it("answers 501 for turn streaming (not available yet)", async () => {
-    const err = await midwater.request("POST", `/v1/conversations/${id}/turns`, {}).catch((e) => e);
-    expect(err.status).toBe(501);
-    expect(err.type).toBe("not_implemented");
   });
 });

@@ -43,11 +43,12 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run test/unit",
+    "test": "vitest run test/unit --coverage",
     "test:contract": "vitest run test/contract",
     "check:openapi": "node scripts/check-openapi.mjs",
+    "contract:setup": "node scripts/contract-setup.mjs",
     "check:package": "node scripts/check-package.mjs",
-    "contract:setup": "node scripts/contract-setup.mjs"
+    "contract:teardown": "node scripts/contract-teardown.mjs"
   },
   "keywords": [
     "midwater",
@@ -61,6 +62,7 @@
   },
   "devDependencies": {
     "@types/node": "^18.19.130",
+    "@vitest/coverage-v8": "^3.2.7",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "vitest": "^3.2.7"

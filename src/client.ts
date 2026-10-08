@@ -10,20 +10,20 @@ import type {
 } from "./types";
 import { VERSION } from "./version";
 
-/** The production API host. A placeholder until deployment; set `baseUrl` or `MIDWATER_BASE_URL` to override. */
-export const DEFAULT_BASE_URL = "https://api.midwater.ai";
-
 const KEY_SHAPE = /^(mw|vk)_(test|live)_/;
-const RETRY_STATUSES = new Set([429, 500, 502, 503, 504]);
+/** Retried: 408, 429 and every server error (plus network errors), on calls that are safe to repeat. */
+const retryableStatus = (status: number) => status === 408 || status === 429 || status >= 500;
+/** The most retries any call makes, whatever `maxRetries` says. */
+export const MAX_RETRIES_CAP = 3;
 
 export interface MidwaterOptions {
-  /** Defaults to `process.env.MIDWATER_API_KEY`. */
+  /** Required: pass it, or set `MIDWATER_API_KEY`. */
   apiKey?: string;
-  /** Defaults to `process.env.MIDWATER_BASE_URL`, then {@link DEFAULT_BASE_URL}. */
+  /** Required: the base URL for your Midwater environment. Pass it, or set `MIDWATER_BASE_URL`. There's no default host. */
   baseUrl?: string;
   /** Per-attempt timeout in milliseconds. Default 30 000. */
   timeoutMs?: number;
-  /** Retries after the first attempt on 429, 5xx and network errors. Default 2. */
+  /** Retries after the first attempt on 408, 429, 5xx and network errors, for calls safe to repeat. Default 2, at most 3. */
   maxRetries?: number;
   /** A fetch implementation. Defaults to the global `fetch`. */
   fetch?: typeof fetch;
@@ -32,9 +32,14 @@ export interface MidwaterOptions {
 }
 
 export interface RequestOptions {
-  /** Makes a retry of this request safe. `conversations.create` makes one for you when omitted. */
+  /** Sent as `Idempotency-Key`. Every POST the SDK makes sends one, generated when you don't pass it. */
   idempotencyKey?: string;
   signal?: AbortSignal;
+}
+
+interface InternalRequestOptions extends RequestOptions {
+  /** Whether the call is safe to repeat. Default: GET only. */
+  retry?: boolean;
 }
 
 export interface WaitOptions {
@@ -85,13 +90,15 @@ export class Midwater {
   constructor(options: MidwaterOptions = {}) {
     const apiKey = options.apiKey ?? readEnv("MIDWATER_API_KEY");
     if (!apiKey) throw new MidwaterError("No API key. Set MIDWATER_API_KEY or pass { apiKey }.");
+    const baseUrl = options.baseUrl ?? readEnv("MIDWATER_BASE_URL");
+    if (!baseUrl) throw new MidwaterError("No base URL. Set MIDWATER_BASE_URL or pass { baseUrl }: the base URL for your Midwater environment.");
     const shape = KEY_SHAPE.exec(apiKey);
     if (!shape) throw new MidwaterError("That doesn't look like a Midwater API key: keys start mw_test_ or mw_live_.");
     this.#apiKey = apiKey;
     this.environment = shape[2] as "test" | "live";
-    this.baseUrl = (options.baseUrl ?? readEnv("MIDWATER_BASE_URL") ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+    this.baseUrl = baseUrl.replace(/\/+$/, "");
     this.#timeoutMs = options.timeoutMs ?? 30_000;
-    this.#maxRetries = Math.max(0, options.maxRetries ?? 2);
+    this.#maxRetries = Math.min(MAX_RETRIES_CAP, Math.max(0, options.maxRetries ?? 2));
     const f = options.fetch ?? (globalThis.fetch as typeof fetch | undefined);
     if (!f) throw new MidwaterError("No fetch implementation found. Use Node 18+ or pass { fetch }.");
     this.#fetch = f;
@@ -110,17 +117,19 @@ export class Midwater {
     return `Midwater { baseUrl: '${this.baseUrl}', environment: '${this.environment}' }`;
   }
 
-  /** Sends one request with retries. Exposed for endpoints the SDK doesn't wrap yet. */
-  async request<T>(method: "GET" | "POST", path: string, body?: unknown, opts: RequestOptions = {}): Promise<{ data: T; status: number; headers: Headers }> {
+  /**
+   * Sends one request. GETs retry; POSTs send an idempotency key and retry only when `retry: true` says the
+   * endpoint honours it. Exposed for endpoints the SDK doesn't wrap yet.
+   */
+  async request<T>(method: "GET" | "POST", path: string, body?: unknown, opts: InternalRequestOptions = {}): Promise<{ data: T; status: number; headers: Headers }> {
     const headers: Record<string, string> = {
       authorization: `Bearer ${this.#apiKey}`,
       accept: "application/json",
       "user-agent": `midwater-js/${VERSION}`,
     };
     if (body !== undefined) headers["content-type"] = "application/json";
-    if (opts.idempotencyKey) headers["idempotency-key"] = opts.idempotencyKey;
-    // Without an idempotency key a retried POST could store a conversation twice, so only safe requests retry.
-    const retryable = method === "GET" || !!opts.idempotencyKey;
+    if (method === "POST") headers["idempotency-key"] = opts.idempotencyKey ?? newIdempotencyKey();
+    const retryable = opts.retry ?? method === "GET";
     const payload = body === undefined ? undefined : JSON.stringify(body);
 
     for (let attempt = 0; ; attempt++) {
@@ -149,7 +158,7 @@ export class Midwater {
         /* not JSON: keep the text */
       }
       if (res.ok) return { data: parsed as T, status: res.status, headers: res.headers };
-      if (last || !RETRY_STATUSES.has(res.status)) throw errorFor(res.status, parsed);
+      if (last || !retryableStatus(res.status)) throw errorFor(res.status, parsed, res.headers.get("midwater-request-id"));
       await this.#sleep(retryAfter(res.headers) ?? backoff(attempt));
     }
   }
@@ -178,8 +187,9 @@ export class Conversations {
    * An idempotency key is generated when you don't pass one, so retries never store the conversation twice.
    */
   async create(params: ConversationCreateParams, opts: RequestOptions = {}): Promise<ConversationAccepted> {
+    // Safe to repeat: the same idempotency key goes with every retry, and the API honours it on this endpoint.
     const idempotencyKey = opts.idempotencyKey ?? newIdempotencyKey();
-    const r = await this.client.request<Omit<ConversationAccepted, "replayed">>("POST", "/v1/conversations", params, { ...opts, idempotencyKey });
+    const r = await this.client.request<Omit<ConversationAccepted, "replayed">>("POST", "/v1/conversations", params, { ...opts, idempotencyKey, retry: true });
     return { ...r.data, replayed: r.headers.get("idempotent-replayed") === "true" };
   }
 
@@ -201,9 +211,12 @@ export class Conversations {
     }
   }
 
-  /** Confirms or corrects one check's result on a conversation. Each call adds a label. */
-  async feedback(id: string, params: FeedbackCreateParams, opts: Pick<RequestOptions, "signal"> = {}): Promise<Feedback> {
-    return (await this.client.request<Feedback>("POST", `/v1/conversations/${seg(id)}/feedback`, params, opts)).data;
+  /**
+   * Confirms or corrects one check's result on a conversation. Sends an idempotency key like every POST, but isn't
+   * retried: the API doesn't honour keys on this endpoint yet (planned), so a retry could record the answer twice.
+   */
+  async feedback(id: string, params: FeedbackCreateParams, opts: RequestOptions = {}): Promise<Feedback> {
+    return (await this.client.request<Feedback>("POST", `/v1/conversations/${seg(id)}/feedback`, params, { ...opts, retry: false })).data;
   }
 }
 

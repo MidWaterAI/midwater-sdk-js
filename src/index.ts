@@ -1,13 +1,18 @@
-export { Midwater, DEFAULT_BASE_URL, Conversations, Agents, Groups } from "./client";
+export { Midwater, MAX_RETRIES_CAP, Conversations, Agents, Groups } from "./client";
 export type { MidwaterOptions, RequestOptions, WaitOptions } from "./client";
 export {
   MidwaterError,
   APIError,
   AuthenticationError,
   ValidationError,
+  PermissionDeniedError,
   NotFoundError,
+  RequestTimeoutError,
+  IdempotencyConflictError,
+  PayloadTooLargeError,
   RateLimitError,
   ServerError,
+  ServiceUnavailableError,
   APIConnectionError,
   WaitTimeoutError,
   WebhookVerificationError,
