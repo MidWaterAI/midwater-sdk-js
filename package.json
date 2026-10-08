@@ -48,7 +48,8 @@
     "check:openapi": "node scripts/check-openapi.mjs",
     "contract:setup": "node scripts/contract-setup.mjs",
     "check:package": "node scripts/check-package.mjs",
-    "contract:teardown": "node scripts/contract-teardown.mjs"
+    "contract:teardown": "node scripts/contract-teardown.mjs",
+    "prepare": "tsup"
   },
   "keywords": [
     "midwater",
@@ -66,5 +67,10 @@
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "vitest": "^3.2.7"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MidWaterAI/midwater-sdk-js.git"
+  },
+  "homepage": "https://docs.midwater.ai/sdks/javascript/"
 }

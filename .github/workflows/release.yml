@@ -1,0 +1,41 @@
+name: Release
+
+# Publishes @midwater/sdk to npm when a version tag (v0.1.0, …) is pushed. Uses npm trusted publishing (OIDC):
+# no npm token is stored anywhere. npmjs.com must list this repository, this workflow file (release.yml) and the
+# environment "npm" as the package's trusted publisher. Provenance is generated automatically (public repo only).
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm 11.5.1 or later.
+      - run: npm install -g npm@^11.5.1
+      - run: npm ci
+      - name: Tag matches package.json and src/version.ts
+        run: |
+          v="$(node -p 'require("./package.json").version')"
+          test "${GITHUB_REF_NAME}" = "v${v}" || { echo "tag ${GITHUB_REF_NAME} != v${v}"; exit 1; }
+          grep -q "\"${v}\"" src/version.ts || { echo "src/version.ts isn't ${v}"; exit 1; }
+      - run: npm run typecheck
+      - run: sha256sum -c fixtures/SHA256SUMS
+      - run: npm test
+      - run: npm run build
+      - run: npm run check:package
+      - run: npm run check:openapi
+      - run: npm publish --access public
