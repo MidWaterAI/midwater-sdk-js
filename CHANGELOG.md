@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased, not published)
+## 0.1.0 (2026-10-08)
 
 - `conversations.create`, `get`, `wait` and `feedback`; `agents.health`; `groups.health`.
 - `apiKey` and `baseUrl` are both required (arguments or `MIDWATER_API_KEY` / `MIDWATER_BASE_URL`); there's no default host.
