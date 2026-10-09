@@ -6,7 +6,7 @@ The TypeScript and JavaScript client for the Midwater API. Send each conversatio
 
 - No runtime dependencies; uses `fetch`.
 - ESM and CommonJS, with types.
-- Node 18 and later. The client also runs in modern browsers and edge runtimes, but your API key is a secret: call Midwater from your server, not from a web page.
+- Node 18 and later. The client also runs in edge runtimes and modern browsers, but **never put an API key in a browser**: anyone who opens the page can read it and use it for your whole environment. Call Midwater from your server; in a browser, use the client only against your own backend.
 
 ## Install
 
@@ -68,6 +68,7 @@ Types for every request and response are exported (`ConversationCreateParams`, `
 ### Outcomes and results
 
 - `outcome`: `resolved`, `unresolved`, `escalated` (handed to a person), `not_real_inquiry` (not a customer call, kept out of resolution rates), or `null` while scoring or when no outcome check applied.
+- **Planned renames:** `outcome` `escalated` → `handed_to_person`, `not_real_inquiry` → `not_customer_call`, and `decided_by` `llm_judge` → `second_review`. The types already accept both names; handle both until the change is announced. The field name `verdict` stays.
 - Each entry in `results` is one check: `verdict` is its result (`pass`, `fail`, `uncertain`, `not_applicable`, or `met` / `not_met` for gating questions), `score` the likelihood the problem occurred (0 to 1), `decided_by` how it was decided (`rule`, `model` for Midwater's model, `llm_judge` for a second review of unclear conversations, `human`), and `reason` why.
 
 ## Errors
@@ -80,6 +81,7 @@ Every error extends `MidwaterError`. API errors carry `status`, `type`, `message
 | `AuthenticationError` | 401 `authentication_error` |
 | `PermissionDeniedError` | 403 `permission_denied` (planned) |
 | `NotFoundError` | 404 `not_found` |
+| `MethodNotAllowedError` | 405 `method_not_allowed` (planned as JSON, with an `Allow` header) |
 | `RequestTimeoutError` | 408 |
 | `IdempotencyConflictError` | 409 `idempotency_conflict` (planned) |
 | `PayloadTooLargeError` | 413 `payload_too_large` (planned) |
@@ -120,7 +122,7 @@ app.post("/midwater/webhooks", express.raw({ type: "application/json" }), (req, 
 });
 ```
 
-`verifyWebhook(payload, headers, secret, { toleranceSeconds? })` (also `webhooks.verify`) checks `Midwater-Signature` (`t=<seconds>,v1=<hex>`, HMAC-SHA256 of `<t>.<raw body>`) in constant time, accepts the delivery if any of several `v1=` values matches, rejects timestamps more than 5 minutes from now, and returns the parsed event. Failures throw `WebhookVerificationError` with a `reason`: `missing_header`, `malformed_header`, `stale_timestamp`, `invalid_signature` or `no_secret`. `headers` can be a `Headers` object or a plain object. This entry point uses `node:crypto`, so it runs on servers.
+`verifyWebhook(payload, headers, secret, { toleranceSeconds? })` (also `webhooks.verify`) checks `Midwater-Signature` (`t=<seconds>,v1=<hex>`, HMAC-SHA256 of `<t>.<raw body>`) in constant time, accepts the delivery if any of several `v1=` values matches, rejects timestamps more than 5 minutes from now, and returns the parsed event. Failures throw `WebhookVerificationError` with a `reason`: `missing_header`, `malformed_header`, `stale_timestamp`, `invalid_signature` or `no_secret`. `headers` can be a `Headers` object or a plain object. This entry point uses `node:crypto`, so it runs on servers. The signing secret is as sensitive as an API key: never put it in a browser or a mobile app.
 
 Answer with any 2xx within 5 seconds, and deduplicate on the `Midwater-Delivery` header: a delivery can arrive more than once.
 

@@ -43,6 +43,8 @@ export class ValidationError extends APIError {}
 export class PermissionDeniedError extends APIError {}
 /** 404 in the key's environment. */
 export class NotFoundError extends APIError {}
+/** 405: the path doesn't support this method (planned as a JSON error with an `Allow` header). */
+export class MethodNotAllowedError extends APIError {}
 /** 408. */
 export class RequestTimeoutError extends APIError {}
 /** 409 `idempotency_conflict`: the idempotency key was used with a different body (planned). */
@@ -80,6 +82,7 @@ const BY_STATUS: Record<number, new (status: number, body: unknown, requestId?: 
   401: AuthenticationError,
   403: PermissionDeniedError,
   404: NotFoundError,
+  405: MethodNotAllowedError,
   408: RequestTimeoutError,
   409: IdempotencyConflictError,
   413: PayloadTooLargeError,

@@ -78,15 +78,19 @@ export interface ConversationAccepted {
 
 /**
  * How the conversation ended for the caller: Resolved, Unresolved, Handed to a person (`escalated`), or Not a
- * customer call (`not_real_inquiry`). `null` while scoring, or when no outcome check applied.
+ * customer call (`not_real_inquiry`). `null` while scoring, or when no outcome check applied. Planned renames:
+ * `escalated` → `handed_to_person`, `not_real_inquiry` → `not_customer_call`; both are accepted until announced.
  */
-export type Outcome = "resolved" | "unresolved" | "escalated" | "not_real_inquiry" | null;
+export type Outcome = "resolved" | "unresolved" | "escalated" | "not_real_inquiry" | "handed_to_person" | "not_customer_call" | null;
 
 /** A check's result: `pass`, `fail`, `uncertain`, `not_applicable`, or `met` / `not_met` for gating questions. */
 export type CheckResultValue = "pass" | "fail" | "uncertain" | "not_applicable" | "met" | "not_met";
 
-/** `rule`, `model` (Midwater's model), `llm_judge` (a second review for unclear conversations), `human`. */
-export type DecidedBy = "rule" | "model" | "llm_judge" | "human" | null;
+/**
+ * `rule`, `model` (Midwater's model), `llm_judge` (a second review for unclear conversations), `human`.
+ * Planned rename: `llm_judge` → `second_review`; both are accepted until it's announced.
+ */
+export type DecidedBy = "rule" | "model" | "llm_judge" | "second_review" | "human" | null;
 
 export interface CheckResult {
   check_key: string;

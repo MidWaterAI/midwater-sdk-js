@@ -7,6 +7,7 @@ export {
   ValidationError,
   PermissionDeniedError,
   NotFoundError,
+  MethodNotAllowedError,
   RequestTimeoutError,
   IdempotencyConflictError,
   PayloadTooLargeError,

@@ -6,6 +6,7 @@ import {
   AuthenticationError,
   IdempotencyConflictError,
   MAX_RETRIES_CAP,
+  MethodNotAllowedError,
   Midwater,
   MidwaterError,
   NotFoundError,
@@ -19,6 +20,7 @@ import {
   WaitTimeoutError,
 } from "../../src/index";
 import { fixture } from "./fixtures";
+import type { Conversation, DecidedBy, Outcome } from "../../src/index";
 
 const KEY = `mw_test_${"k".repeat(32)}`;
 const BASE = "https://api.example.test";
@@ -201,7 +203,7 @@ describe("conversations.create", () => {
     expect(calls).toHaveLength(1);
   });
 
-  for (const status of [400, 401, 403, 404, 409, 413, 422])
+  for (const status of [400, 401, 403, 404, 405, 409, 413, 422])
     it(`doesn't retry ${status}`, async () => {
       const { fetch, calls } = mockFetch([json(status, { error: { type: "x", message: "x" } })]);
       await expect(client(fetch).conversations.create(conv)).rejects.toBeInstanceOf(APIError);
@@ -215,6 +217,7 @@ describe("errors, from the shared fixtures", () => {
     authentication_error: AuthenticationError,
     permission_denied: PermissionDeniedError,
     not_found: NotFoundError,
+    method_not_allowed: MethodNotAllowedError,
     idempotency_conflict: IdempotencyConflictError,
     payload_too_large: PayloadTooLargeError,
     validation_error: ValidationError,
@@ -324,5 +327,21 @@ describe("conversations.wait", () => {
   it("uses the default timing", async () => {
     const { fetch } = mockFetch([json(200, fixture("conversation.json"))]);
     expect((await client(fetch).conversations.wait("c")).status).toBe("done");
+  });
+});
+
+describe("planned value renames (A7)", () => {
+  it("types accept old and new names, and they pass through untouched", async () => {
+    const base = fixture<Conversation>("conversation.json");
+    const outcomes: Outcome[] = ["escalated", "handed_to_person", "not_real_inquiry", "not_customer_call"];
+    const deciders: DecidedBy[] = ["llm_judge", "second_review"];
+    for (const outcome of outcomes)
+      for (const decided_by of deciders) {
+        const body = { ...base, outcome, results: [{ ...base.results[0]!, decided_by }] };
+        const { fetch } = mockFetch([json(200, body)]);
+        const c = await client(fetch).conversations.get("c");
+        expect(c.outcome).toBe(outcome);
+        expect(c.results[0]!.decided_by).toBe(decided_by);
+      }
   });
 });

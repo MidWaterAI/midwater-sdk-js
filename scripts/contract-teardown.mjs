@@ -4,18 +4,29 @@
  * throwaway workspace's owner and calls the app's revoke endpoint. Reads the git-ignored file written by
  * contract-setup.mjs. Prints nothing secret. Local stacks only.
  *
- *   node scripts/contract-teardown.mjs [--env .env.contract]
+ *   node scripts/contract-teardown.mjs [--ledger .secrets/throwaway/<run>.json]   # default: the newest ledger
+ *   node scripts/contract-teardown.mjs --env .env.contract                       # older runs without a ledger
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 
-const i = process.argv.indexOf("--env");
-const file = i >= 0 ? process.argv[i + 1] : ".env.contract";
-const env = Object.fromEntries(
-  readFileSync(file, "utf8")
-    .split("\n")
-    .filter((l) => l && !l.startsWith("#") && l.includes("="))
-    .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]),
-);
+const arg = (name) => (process.argv.indexOf(name) >= 0 ? process.argv[process.argv.indexOf(name) + 1] : undefined);
+let env;
+let ledgerFile = arg("--ledger");
+if (!arg("--env") && !ledgerFile) {
+  const files = (() => { try { return readdirSync(".secrets/throwaway").filter((f) => f.endsWith(".json")).sort(); } catch { return []; } })();
+  if (files.length) ledgerFile = `.secrets/throwaway/${files.at(-1)}`;
+}
+if (ledgerFile) {
+  const l = JSON.parse(readFileSync(ledgerFile, "utf8"));
+  env = { MIDWATER_BASE_URL: l.url, MIDWATER_CONTRACT_LOGIN_EMAIL: l.email, MIDWATER_CONTRACT_LOGIN_PASSWORD: l.password, MIDWATER_CONTRACT_KEY_ID: l.keys.at(-1), MIDWATER_CONTRACT_WORKSPACE: l.workspace, __ledger: l };
+} else {
+  env = Object.fromEntries(
+    readFileSync(arg("--env") ?? ".env.contract", "utf8")
+      .split("\n")
+      .filter((l) => l && !l.startsWith("#") && l.includes("="))
+      .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]),
+  );
+}
 const baseUrl = env.MIDWATER_BASE_URL.replace(/\/+$/, "");
 if (!["localhost", "127.0.0.1"].includes(new URL(baseUrl).hostname)) throw new Error("Local stacks only");
 
@@ -52,7 +63,15 @@ const res = await req(`/api/keys/${env.MIDWATER_CONTRACT_KEY_ID}/revoke`, { meth
 const body = await res.json();
 if (res.status !== 200 || !body.key?.revokedAt) throw new Error(`Revoke returned HTTP ${res.status}`);
 
-// Prove it: the key no longer authenticates.
-const probe = await fetch(`${baseUrl}/v1/agents/default/health`, { headers: { authorization: `Bearer ${env.MIDWATER_API_KEY}` } });
-console.log(`Key ${env.MIDWATER_CONTRACT_KEY_ID} revoked at ${body.key.revokedAt} in "${env.MIDWATER_CONTRACT_WORKSPACE}"; the key now gets HTTP ${probe.status}.`);
-if (probe.status !== 401) process.exit(1);
+if (env.__ledger) {
+  env.__ledger.revoked.push({ id: env.MIDWATER_CONTRACT_KEY_ID, at: body.key.revokedAt });
+  writeFileSync(ledgerFile, JSON.stringify(env.__ledger, null, 2), { mode: 0o600 });
+}
+// Prove it, when the key itself is at hand: it no longer authenticates.
+let note = "";
+if (env.MIDWATER_API_KEY) {
+  const probe = await fetch(`${baseUrl}/v1/agents/default/health`, { headers: { authorization: `Bearer ${env.MIDWATER_API_KEY}` } });
+  note = `; the key now gets HTTP ${probe.status}`;
+  if (probe.status !== 401) (console.error(`Key still authenticates (HTTP ${probe.status})`), process.exit(1));
+}
+console.log(`Key ${env.MIDWATER_CONTRACT_KEY_ID} revoked at ${body.key.revokedAt} in "${env.MIDWATER_CONTRACT_WORKSPACE}"${note}.`);
