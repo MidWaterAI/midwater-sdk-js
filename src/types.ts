@@ -1,5 +1,5 @@
 /**
- * Types for the Midwater API, written from openapi/midwater.yaml (the contract). Field names match the wire format.
+ * Types for the Midwater API, written from openapi/midwater.json (the pinned copy of the app's spec). Field names match the wire format.
  */
 
 /** Which environment a key belongs to. Test keys start `mw_test_`, live keys `mw_live_`. */
