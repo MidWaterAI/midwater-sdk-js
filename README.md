@@ -18,11 +18,11 @@ npm install @midwater/sdk
 
 Make a **test key** in the Midwater app (Developers page). Test keys start `mw_test_`; live keys start `mw_live_`. (Keys made before October 2026 start `vk_` and still work.) Each key belongs to one environment of one project, and everything you send and read is scoped to it.
 
-The API key and the base URL are both required. There's no default host: use the base URL for your Midwater environment.
+The API key and the base URL are both required. The base URL is `https://api.midwater.ai`; the SDK doesn't assume it yet, so pass it or set `MIDWATER_BASE_URL`.
 
 ```sh
 export MIDWATER_API_KEY=mw_test_...
-export MIDWATER_BASE_URL=...   # the base URL for your Midwater environment
+export MIDWATER_BASE_URL=https://api.midwater.ai
 ```
 
 ```ts
@@ -61,7 +61,7 @@ for (const r of conversation.results) console.log(r.check_key, r.verdict, r.reas
 | `agents.health(agentId)` | `GET /v1/agents/{agent_id}/health` |
 | `groups.health(groupId)` | `GET /v1/groups/{group_id}/health` |
 
-Types for every request and response are exported (`ConversationCreateParams`, `Conversation`, `CheckResult`, `AgentHealth`, `GroupHealth`, `WebhookEvent`, …), written from the pinned contract in [`openapi/midwater.yaml`](openapi/midwater.yaml).
+Types for every request and response are exported (`ConversationCreateParams`, `Conversation`, `CheckResult`, `AgentHealth`, `GroupHealth`, `WebhookEvent`, …), written from the pinned copy of the app's API spec, [`openapi/midwater.json`](openapi/midwater.json).
 
 **Versioning.** The API version is in the path (`/v1`). New fields, event types and enum values can appear without a new version, so don't fail on values you don't recognise. A breaking change would get `/v2`, with at least 6 months of overlap.
 
@@ -131,7 +131,7 @@ Answer with any 2xx within 5 seconds, and deduplicate on the `Midwater-Delivery`
 ```ts
 new Midwater({
   apiKey: "mw_live_...",   // required: or MIDWATER_API_KEY
-  baseUrl: "...",          // required: or MIDWATER_BASE_URL; no default host
+  baseUrl: "https://api.midwater.ai", // required: or MIDWATER_BASE_URL; no default yet
   timeoutMs: 30_000,       // per attempt
   maxRetries: 2,           // at most 3
   fetch: customFetch,      // default: global fetch
@@ -147,7 +147,7 @@ npm ci
 npm run typecheck && npm test && npm run build && npm run check:package && npm run check:openapi
 ```
 
-`npm test` runs the unit tests with coverage (at least 90% required). The tests use the shared fixtures in `fixtures/`, generated from the contract in the `midwater-docs` repository; `fixtures/SHA256SUMS` pins them and the contract, and a test fails when a pinned copy drifts. Don't edit them here: regenerate in `midwater-docs` and copy all of `fixtures/` and `openapi/midwater.yaml` across.
+`npm test` runs the unit tests with coverage (at least 90% required). `openapi/midwater.json` is a pinned copy of the app's spec: `openapi/midwater.json.sha256` records its checksum and `openapi/SOURCE` the app commit. The tests use the shared fixtures in `fixtures/`, generated from that spec in `midwater-docs`; `fixtures/SHA256SUMS` pins them, and a test fails when either pinned copy drifts. Don't edit them here: `scripts/pin-openapi.sh <app-commit>` in `midwater-docs` updates all three repos.
 
 Contract tests run against a local Midwater stack and read the key from environment variables only:
 

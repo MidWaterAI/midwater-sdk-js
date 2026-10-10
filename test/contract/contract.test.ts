@@ -67,7 +67,7 @@ describe.skipIf(!enabled)("contract: local Midwater stack", () => {
     for (const r of c.results) {
       expect(typeof r.check_key).toBe("string");
       expect(["pass", "fail", "uncertain", "not_applicable", "met", "not_met"]).toContain(r.verdict);
-      expect(typeof r.scorer_version).toBe("string");
+      expect(r.scorer_version === null || typeof r.scorer_version === "string").toBe(true);
     }
     expect((await midwater.conversations.get(externalId)).id).toBe(id);
   }, 100_000);

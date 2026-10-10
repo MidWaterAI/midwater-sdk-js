@@ -1,5 +1,5 @@
 /**
- * Types for the Midwater API, written from openapi/midwater.yaml (the contract). Field names match the wire format.
+ * Types for the Midwater API, written from openapi/midwater.json (the pinned copy of the app's spec). Field names match the wire format.
  */
 
 /** Which environment a key belongs to. Test keys start `mw_test_`, live keys `mw_live_`. */
@@ -105,8 +105,8 @@ export interface CheckResult {
   decided_by: DecidedBy;
   reason: string | null;
   evidence_turns: unknown[];
-  /** Midwater's opaque scoring version, e.g. `2026-10-06.3`. */
-  scorer_version: string;
+  /** Midwater's opaque scoring version, e.g. `2026-10-06.3`; `null` when nothing scored the result. */
+  scorer_version: string | null;
   latency_ms: number | null;
 }
 

@@ -1,10 +1,9 @@
 #!/usr/bin/env node
-/** Every operation under `paths` in openapi/midwater.yaml must be wrapped by the SDK, and nothing else. */
+/** Every operation under `paths` in openapi/midwater.json (the pinned copy of the app's spec) must be wrapped by the SDK, and nothing else. */
 import { readFileSync } from "node:fs";
 
-const spec = readFileSync(new URL("../openapi/midwater.yaml", import.meta.url), "utf8");
-const paths = spec.slice(spec.indexOf("\npaths:"), spec.indexOf("\nx-midwater-webhook-delivery:"));
-const ops = [...paths.matchAll(/operationId:\s*(\w+)/g)].map((m) => m[1]);
+const spec = JSON.parse(readFileSync(new URL("../openapi/midwater.json", import.meta.url), "utf8"));
+const ops = Object.values(spec.paths).flatMap((item) => Object.values(item).map((op) => op.operationId).filter(Boolean));
 const covered = {
   createConversation: "conversations.create",
   getConversation: "conversations.get",
