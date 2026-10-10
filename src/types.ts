@@ -154,6 +154,8 @@ export interface Feedback {
   check_key: string;
   verdict: "pass" | "fail";
   source: "api";
+  /** `true` when the response replays an earlier request with the same idempotency key. */
+  replayed: boolean;
 }
 
 /** `not_enough_calls`: fewer than 5 calls with an outcome in the last 7 days. */

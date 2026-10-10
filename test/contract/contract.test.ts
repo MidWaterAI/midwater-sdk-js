@@ -4,7 +4,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { AuthenticationError, Midwater, NotFoundError, ValidationError, type ConversationCreateParams } from "../../src/index";
+import { AuthenticationError, IdempotencyConflictError, Midwater, NotFoundError, ValidationError, type ConversationCreateParams } from "../../src/index";
 
 const env = { MIDWATER_API_KEY: process.env.MIDWATER_API_KEY ?? "", MIDWATER_BASE_URL: process.env.MIDWATER_BASE_URL ?? "" };
 const local = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(env.MIDWATER_BASE_URL);
@@ -46,6 +46,10 @@ describe.skipIf(!enabled)("contract: local Midwater stack", () => {
     expect(r).toMatchObject({ id, replayed: true });
   });
 
+  it("rejects the same idempotency key with a different body (409)", async () => {
+    await expect(midwater.conversations.create({ ...conversation, external_id: `${externalId}-other` }, { idempotencyKey: `idem-${externalId}` })).rejects.toBeInstanceOf(IdempotencyConflictError);
+  });
+
   it("answers an existing external_id with the existing conversation", async () => {
     const r = await midwater.conversations.create(conversation);
     expect(r).toMatchObject({ id, duplicate: true, replayed: false });
@@ -79,6 +83,12 @@ describe.skipIf(!enabled)("contract: local Midwater stack", () => {
     const f = await midwater.conversations.feedback(externalId, { check_key: key!, verdict: "pass", note: "contract test" });
     expect(f).toMatchObject({ check_key: key, verdict: "pass", source: "api" });
     await expect(midwater.conversations.feedback(externalId, { check_key: "no_such_check", verdict: "pass" })).rejects.toBeInstanceOf(NotFoundError);
+    // API 1.2.0: feedback honours its idempotency key; the same key with a different body is a conflict.
+    const fbKey = `fb-${randomUUID()}`;
+    const first = await midwater.conversations.feedback(externalId, { check_key: key!, verdict: "fail" }, { idempotencyKey: fbKey });
+    const again = await midwater.conversations.feedback(externalId, { check_key: key!, verdict: "fail" }, { idempotencyKey: fbKey });
+    expect(again).toMatchObject({ id: first.id, replayed: true });
+    await expect(midwater.conversations.feedback(externalId, { check_key: key!, verdict: "pass" }, { idempotencyKey: fbKey })).rejects.toBeInstanceOf(IdempotencyConflictError);
   });
 
   it("answers 404 for an unknown conversation", async () => {

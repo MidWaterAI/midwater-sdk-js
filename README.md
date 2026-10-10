@@ -83,7 +83,7 @@ Every error extends `MidwaterError`. API errors carry `status`, `type`, `message
 | `NotFoundError` | 404 `not_found` |
 | `MethodNotAllowedError` | 405 `method_not_allowed` (planned as JSON, with an `Allow` header) |
 | `RequestTimeoutError` | 408 |
-| `IdempotencyConflictError` | 409 `idempotency_conflict` (planned) |
+| `IdempotencyConflictError` | 409 `idempotency_conflict`: the key was used for a different request |
 | `PayloadTooLargeError` | 413 `payload_too_large` (planned) |
 | `RateLimitError` | 429 `rate_limited` (planned) |
 | `ServiceUnavailableError` | 503 `service_unavailable` (planned); a `ServerError` |
@@ -96,9 +96,8 @@ An unknown type or status never crashes the client: it maps by status class. `re
 
 ## Retries and idempotency
 
-- **What retries:** 408, 429, every 5xx, and network errors, on calls that are safe to repeat: GETs and `conversations.create`. At most 3 retries whatever `maxRetries` says (default 2), with exponential backoff and jitter, honouring a numeric `Retry-After` (capped at 60 s).
-- **Idempotency keys:** every POST sends an `Idempotency-Key`, yours if you pass `{ idempotencyKey }`, otherwise a new random one per call, reused on that call's retries. A repeated key answers with the first response and `replayed: true`. Planned on the API side: keys expire after 24 hours, and reusing a key with a different body answers `409 idempotency_conflict`.
-- **Feedback** sends a key but isn't retried yet: the API doesn't honour keys on that endpoint so far (planned), and a retry could record the answer twice.
+- **What retries:** 408, 429, every 5xx, and network errors, on calls that are safe to repeat: GETs, `conversations.create` and `conversations.feedback`. At most 3 retries whatever `maxRetries` says (default 2), with exponential backoff and jitter, honouring a numeric `Retry-After` (capped at 60 s).
+- **Idempotency keys:** every POST sends an `Idempotency-Key` (255 characters or fewer), yours if you pass `{ idempotencyKey }`, otherwise a new random one per call, reused on that call's retries. The API keeps a key for 24 hours per environment: the same key with the same request answers with the first response, and the SDK sets `replayed: true` on what `create` and `feedback` return. The same key with a different request raises `IdempotencyConflictError` (409); use a new key for a new request.
 - Separately, sending an `external_id` that already exists answers with that conversation and `duplicate: true`.
 
 ## Webhooks

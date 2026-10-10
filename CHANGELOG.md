@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased (planned for 0.2.0)
+
+- `coverage` on `Conversation` and in `conversation.evaluated` data (API 1.1.0).
+- `scorer_version` can be `null`.
+- `conversations.feedback` is retried like `create` (the API honours its idempotency key since 1.2.0) and returns `replayed`.
+
 ## 0.1.0 (2026-10-08)
 
 - `conversations.create`, `get`, `wait` and `feedback`; `agents.health`; `groups.health`.
