@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 /**
+ * SUPERSEDED (2026-10-10): the app now signs in by email code, so this password sign-up no longer works; the
+ * throwaway key for contract tests comes from the e2e runner instead. Kept for reference.
+ *
  * Creates a throwaway workspace and a test API key on a local Midwater stack, the way a tenant would (sign up,
  * create a workspace, make a test key), and writes them to a git-ignored env file for the contract tests.
  *

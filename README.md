@@ -152,12 +152,12 @@ npm run typecheck && npm test && npm run build && npm run check:package && npm r
 Contract tests run against a local Midwater stack and read the key from environment variables only:
 
 ```sh
-npm run contract:setup     # signs up a throwaway local workspace, makes a test key, writes the git-ignored .env.contract
-env $(grep -E '^MIDWATER_(API_KEY|BASE_URL)=' .env.contract | xargs) npm run test:contract
-npm run contract:teardown  # revokes the key through the app
+MIDWATER_API_KEY=… MIDWATER_BASE_URL=http://localhost:3200 npm run test:contract
 ```
 
-The setup and teardown scripts refuse any host other than localhost.
+The throwaway workspace and test key come from the Midwater team's end-to-end runner, which records every throwaway account before it's created and revokes the key afterwards. Never use a customer's key.
+
+**Superseded:** `npm run contract:setup` and `contract:teardown` signed up through the app's password form, which no longer exists (sign-in is by email code). They're kept for reference and refuse any host other than localhost.
 
 ## Releasing
 

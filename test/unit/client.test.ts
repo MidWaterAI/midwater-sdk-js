@@ -355,3 +355,15 @@ describe("scorer_version", () => {
   });
 });
 
+describe("coverage (API 1.1.0)", () => {
+  it("reads complete and partial coverage", async () => {
+    const base = fixture<Conversation>("conversation.json");
+    expect(base.coverage).toEqual({ complete: true, skipped_turns: 0, skipped_from: null, skipped_to: null });
+    const partial = { complete: false, skipped_turns: 42, skipped_from: 1_800_000, skipped_to: 4_200_000 };
+    const { fetch } = mockFetch([json(200, base), json(200, { ...base, coverage: partial })]);
+    const m = client(fetch);
+    expect((await m.conversations.get("c")).coverage.complete).toBe(true);
+    expect((await m.conversations.get("c")).coverage).toEqual(partial);
+  });
+});
+
