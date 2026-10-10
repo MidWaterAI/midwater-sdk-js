@@ -105,8 +105,8 @@ export interface CheckResult {
   decided_by: DecidedBy;
   reason: string | null;
   evidence_turns: unknown[];
-  /** Midwater's opaque scoring version, e.g. `2026-10-06.3`. */
-  scorer_version: string;
+  /** Midwater's opaque scoring version, e.g. `2026-10-06.3`; `null` when nothing scored the result. */
+  scorer_version: string | null;
   latency_ms: number | null;
 }
 

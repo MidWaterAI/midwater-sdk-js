@@ -345,3 +345,13 @@ describe("planned value renames (A7)", () => {
       }
   });
 });
+
+describe("scorer_version", () => {
+  it("passes null through (nothing scored the result)", async () => {
+    const base = fixture<Conversation>("conversation.json");
+    const { fetch } = mockFetch([json(200, { ...base, results: [{ ...base.results[0]!, scorer_version: null }] })]);
+    const c = await client(fetch).conversations.get("c");
+    expect(c.results[0]!.scorer_version).toBeNull();
+  });
+});
+
