@@ -110,12 +110,26 @@ export interface CheckResult {
   latency_ms: number | null;
 }
 
+/**
+ * How much of the transcript Midwater read (API 1.1.0). A very long call can be read in part: one stretch from the
+ * middle is skipped and the opening and ending are kept, so checks answered from it may be incomplete. `complete` is
+ * `true` when every turn was read. `skipped_from` / `skipped_to` are milliseconds from the start of the call, `null`
+ * when complete or when the turns have no times.
+ */
+export interface Coverage {
+  complete: boolean;
+  skipped_turns: number;
+  skipped_from: number | null;
+  skipped_to: number | null;
+}
+
 export interface Conversation {
   id: string;
   external_id: string;
   channel: Channel;
   status: ConversationStatus;
   outcome: Outcome;
+  coverage: Coverage;
   dashboard_url: string;
   started_at: string | null;
   ended_at: string | null;
@@ -203,6 +217,7 @@ export interface ConversationEvaluatedData {
   agent: WebhookAgent;
   group?: { id: string; name: string };
   outcome: Outcome;
+  coverage: Coverage;
   results: { check_key: string; verdict: CheckResultValue; score: number | null; decided_by: DecidedBy; shadow: boolean }[];
 }
 
