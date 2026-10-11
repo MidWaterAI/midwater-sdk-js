@@ -275,7 +275,7 @@ describe("reads and feedback", () => {
     expect(await m.conversations.get("call/with space")).toEqual(fixture("conversation.json"));
     expect(await m.agents.health("brightsmile-dental:receptionist-v3")).toEqual(fixture("agent-health.json"));
     expect(await m.groups.health("north east")).toEqual(fixture("group-health.json"));
-    expect(await m.conversations.feedback("call_1", fixture("feedback-create.json"))).toEqual(fixture("feedback.json"));
+    expect(await m.conversations.feedback("call_1", fixture("feedback-create.json"))).toEqual({ ...fixture("feedback.json"), replayed: false });
     expect(calls.map((c) => c.url.replace(BASE, ""))).toEqual([
       "/v1/conversations/call%2Fwith%20space",
       "/v1/agents/brightsmile-dental%3Areceptionist-v3/health",
@@ -294,14 +294,23 @@ describe("reads and feedback", () => {
     expect(calls).toHaveLength(2);
   });
 
-  it("sends an idempotency key with feedback, yours or a generated one, but doesn't retry it", async () => {
-    const { fetch, calls } = mockFetch([json(503, {}), json(200, fixture("feedback.json"))]);
+  it("sends an idempotency key with feedback, yours or a generated one, and retries with the same key", async () => {
+    const { fetch, calls } = mockFetch([json(503, {}), json(200, fixture("feedback.json")), json(200, fixture("feedback.json"), { "idempotent-replayed": "true" })]);
     const m = client(fetch);
-    await expect(m.conversations.feedback("c", fixture("feedback-create.json"))).rejects.toBeInstanceOf(ServerError);
-    expect(calls).toHaveLength(1);
+    expect(await m.conversations.feedback("c", fixture("feedback-create.json"))).toEqual({ ...fixture("feedback.json"), replayed: false });
+    expect(calls).toHaveLength(2);
     expect(headersOf(calls[0]!)["idempotency-key"]).toMatch(/.{8,}/);
-    await m.conversations.feedback("c", fixture("feedback-create.json"), { idempotencyKey: "fb-1" });
-    expect(headersOf(calls[1]!)["idempotency-key"]).toBe("fb-1");
+    expect(headersOf(calls[1]!)["idempotency-key"]).toBe(headersOf(calls[0]!)["idempotency-key"]);
+    expect((await m.conversations.feedback("c", fixture("feedback-create.json"), { idempotencyKey: "fb-1" })).replayed).toBe(true);
+    expect(headersOf(calls[2]!)["idempotency-key"]).toBe("fb-1");
+  });
+
+  it("raises IdempotencyConflictError when a key is reused for a different request, without retrying", async () => {
+    const { fetch, calls } = mockFetch([json(409, fixture("errors.json").idempotency_conflict.body)]);
+    const err = await client(fetch).conversations.feedback("c", fixture("feedback-create.json"), { idempotencyKey: "fb-1" }).catch((e) => e);
+    expect(err).toBeInstanceOf(IdempotencyConflictError);
+    expect(err.type).toBe("idempotency_conflict");
+    expect(calls).toHaveLength(1);
   });
 });
 

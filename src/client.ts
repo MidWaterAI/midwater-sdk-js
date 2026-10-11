@@ -212,11 +212,14 @@ export class Conversations {
   }
 
   /**
-   * Confirms or corrects one check's result on a conversation. Sends an idempotency key like every POST, but isn't
-   * retried: the API doesn't honour keys on this endpoint yet (planned), so a retry could record the answer twice.
+   * Confirms or corrects one check's result on a conversation. Like every POST it sends an idempotency key (yours, or
+   * a new one per call) and reuses it on its own retries, which the API honours (API 1.2.0), so a retry never records
+   * the answer twice.
    */
   async feedback(id: string, params: FeedbackCreateParams, opts: RequestOptions = {}): Promise<Feedback> {
-    return (await this.client.request<Feedback>("POST", `/v1/conversations/${seg(id)}/feedback`, params, { ...opts, retry: false })).data;
+    const idempotencyKey = opts.idempotencyKey ?? newIdempotencyKey();
+    const r = await this.client.request<Omit<Feedback, "replayed">>("POST", `/v1/conversations/${seg(id)}/feedback`, params, { ...opts, idempotencyKey, retry: true });
+    return { ...r.data, replayed: r.headers.get("idempotent-replayed") === "true" };
   }
 }
 

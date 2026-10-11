@@ -47,7 +47,7 @@ export class NotFoundError extends APIError {}
 export class MethodNotAllowedError extends APIError {}
 /** 408. */
 export class RequestTimeoutError extends APIError {}
-/** 409 `idempotency_conflict`: the idempotency key was used with a different body (planned). */
+/** 409 `idempotency_conflict`: the idempotency key was already used, within 24 hours, for a different request. */
 export class IdempotencyConflictError extends APIError {}
 /** 413: the body is too large (planned). */
 export class PayloadTooLargeError extends APIError {}
